@@ -1,0 +1,60 @@
+CREATE VIEW gold.dim_customers AS (
+	SELECT
+		ROW_NUMBER() OVER(ORDER BY cst_id) AS customer_key,
+		ci.cst_id AS customer_id,
+		ci.cst_key AS customer_number,
+		ci.cst_firstname AS firstname,
+		ci.cst_lastname AS lastname,
+		cr.cntry AS country,
+		ci.cst_maritial_status AS maritial_status,
+		br.BDATE AS birthdate,
+		ci.cst_create_date AS create_date,	
+		CASE WHEN ci.cst_gndr != 'N/A' THEN ci.cst_gndr
+			ELSE COALESCE(br.GEN, 'N/A')
+		END AS gender
+	
+	FROM silver.crm_cust_info ci
+	LEFT JOIN silver.erp_cust_az12 br
+	On br.CID = ci.cst_key
+	LEFT JOIN silver.erp_loc_a101 cr
+	ON cr.cid = ci.cst_key
+	)
+
+--------------------------------
+
+CREATE VIEW gold.dim_products AS
+SELECT
+	ROW_NUMBER() OVER(ORDER BY pr.prd_start_dt, pr.Prd_key) AS product_key,
+	pr.prd_id AS product_id,
+	pr.Prd_key AS product_number,
+	pr.prd_nm AS product_name,
+	pr.cat_id AS catagory_id,
+	ct.CAT As catagory,
+	ct.SUBCAT AS subcatagory,
+	ct.MAINTENANCE,
+	pr.prd_cost AS product_cost,
+	pr.prd_line,
+	pr.prd_start_dt AS start_date
+FROM silver.crm_prd_info pr
+LEFT JOIN silver.erp_px_cat_g1v2 ct
+	ON pr.cat_id = ct.ID
+WHERE prd_end_dt IS NULL -- Filter out curren data
+
+-------------------------------------
+
+CREATE VIEW gold.fact_sales AS 
+SELECT
+sl.sls_ord_num AS order_number,
+pr.product_key,
+cs.customer_key,
+sl.sls_order_dt AS order_date,
+sl.sls_ship_dt AS shiping_date,
+sl.sls_due_dt AS due_date,
+sl.sls_sales AS sales_amount,
+sl.sls_quantity AS quantity,
+sl.sls_price AS price
+FROM silver.crm_sales_details sl
+LEFT JOIN gold.dim_products pr
+ON sl.sls_prd_key = pr.product_number
+LEFT JOIN gold.dim_customers cs
+ON sl.sls_cust_id = cs.customer_id
